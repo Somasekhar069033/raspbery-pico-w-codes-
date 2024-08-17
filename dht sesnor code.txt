@@ -1,0 +1,61 @@
+import time
+import dht
+import machine
+from umqtt.simple import MQTTClient
+import network
+
+# Wi-Fi credentials
+ssid = "*****"
+password = "******"
+
+# Adafruit IO credentials
+AIO_SERVER = "io.adafruit.com"
+AIO_PORT = 1883
+AIO_USERNAME = "*******"
+AIO_KEY = "**********************"
+AIO_TEMPERATURE_FEED = AIO_USERNAME + "/feeds/temperature"       
+AIO_HUMIDITY_FEED = AIO_USERNAME + "/feeds/humidity"
+
+# Connect to Wi-Fi
+wlan = network.WLAN(network.STA_IF)
+wlan.active(True)
+wlan.connect(ssid, password)
+
+print("Connecting to WiFi...")
+while not wlan.isconnected():
+    time.sleep(1)
+
+print("Connected to WiFi")
+
+# DHT Sensor setup
+dht_sensor = dht.DHT22(machine.Pin(15))
+
+# Connect to Adafruit IO
+print("Connecting to Adafruit IO...")
+client = MQTTClient("raspberry_pico", AIO_SERVER, AIO_PORT, AIO_USERNAME, AIO_KEY)
+client.connect()
+print("Connected to Adafruit IO")
+
+while True:
+    try:
+        cf=0.00004
+        dht_sensor.measure()
+        
+        temperature  = (dht_sensor.temperature() - 500 )/10.0  # Convert from tenths of degrees to degrees Celsius
+        humidity = dht_sensor.humidity() / 35.4        # Ensure humidity is in percentage
+
+        # Print values to the shell
+        print("Temperature: {:.1f} C".format(temperature))
+        print("Humidity: {:.1f} %".format(humidity))
+
+        # Debug: Check if values are being sent correctly
+        print("Publishing to Adafruit IO...")
+        client.publish(AIO_TEMPERATURE_FEED, str(temperature))
+        client.publish(AIO_HUMIDITY_FEED, str(humidity))
+        print("Data published successfully.")
+
+        time.sleep(10)
+
+    except OSError as e:
+        print("Failed to read sensor or publish data:", e)
+
